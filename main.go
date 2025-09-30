@@ -55,8 +55,17 @@ import (
 		
 		upstream_addr := &unix.SockaddrInet4{Port: 9090, Addr: [4]byte{127, 0, 0, 1}}
 		err = unix.Connect(upstream_sock, upstream_addr)
-		if err != nil {
+		if err == unix.ECONNREFUSED {
+			fmt.Println("Bad gateway: upstream server is down")
+			unix.Write(client_sock, []byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
+			unix.Close(upstream_sock)
+			unix.Close(client_sock)
+			continue
+		} else if err != nil {
 			fmt.Println("Error connecting to upstream server:", err)
+			unix.Close(upstream_sock)
+			unix.Close(client_sock)
+			continue
 		}
 		fmt.Printf("Connected to upstream server at: %d.%d.%d.%d\n", upstream_addr.Addr[0], upstream_addr.Addr[1], upstream_addr.Addr[2], upstream_addr.Addr[3])
 		
