@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 )
@@ -43,7 +42,6 @@ func TestParserFragmented(t *testing.T) {
 			p := NewParser()
 			// Feed each fragment to the parser
 			for _, fragment := range tc.str {
-				fmt.Printf("Feeding fragment: %q\n", fragment)
 				got, err = p.IngestString(fragment)
 				if err != nil && tc.want != nil {
 					t.Fatalf("IngestString() error = %v", err)

@@ -56,7 +56,6 @@ func (p *Parser) Parse(chunk []byte) error {
 
 			// Parse the line (e.g., "GET / HTTP/1.1\r\n")
 			parts := strings.Fields(line)
-			fmt.Printf("Request line parts: %q\n", parts)
 			if len(parts) < 3 {
 				return fmt.Errorf("malformed request line")
 			}
