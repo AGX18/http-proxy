@@ -56,6 +56,7 @@ func (p *Parser) Parse(chunk []byte) error {
 
 			// Parse the line (e.g., "GET / HTTP/1.1\r\n")
 			parts := strings.Fields(line)
+			fmt.Printf("Request line parts: %q\n", parts)
 			if len(parts) < 3 {
 				return fmt.Errorf("malformed request line")
 			}
@@ -103,20 +104,18 @@ func (p *Parser) Parse(chunk []byte) error {
 
 }
 
-func IngestString(data string) (*Request, error) {
-	parser := NewParser()
-	err := parser.Parse([]byte(data))
+func (p *Parser) IngestString(data string) (*Request, error) {
+	err := p.Parse([]byte(data))
 	if err != nil {
 		return nil, err
 	}
-	return parser.request, nil
+	return p.request, nil
 }
 
-func IngestBytes(data []byte) (*Request, error) {
-	parser := NewParser()
-	err := parser.Parse(data)
+func (p *Parser) IngestBytes(data []byte) (*Request, error) {
+	err := p.Parse(data)
 	if err != nil {
 		return nil, err
 	}
-	return parser.request, nil
+	return p.request, nil
 }
