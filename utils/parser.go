@@ -73,7 +73,7 @@ func (p *Parser) Parse(chunk []byte) error {
 					return nil
 				}
 				line = strings.TrimSpace(line)
-				if line == "" {
+				if line == "" || line == "\r" {
 					// End of headers
 					p.state = StateBody
 					break
