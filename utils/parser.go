@@ -78,6 +78,10 @@ func (p *Parser) Parse(chunk []byte) error {
 				if line == "" || line == "\r" {
 					// End of headers
 					p.state = StateBody
+					if p.request.Method == "GET" || p.request.Method == "HEAD" {
+						// No body expected for GET or HEAD requests
+						p.state = StateDone
+					}
 					break
 				}
 				// Parse header line (e.g., "Host: example.com\r\n")

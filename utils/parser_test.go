@@ -34,6 +34,7 @@ func TestParserFragmented(t *testing.T) {
         {"three parts request", []string{"GET / HTTP/1.1\r\n", "Host: example.com\r", "\nConnection: close\r\n\r\n"}, &Request{Method: "GET", Path: "/", Version: "HTTP/1.1", Headers: map[string]string{"Host": "example.com", "Connection": "close"}}},
         {"with a body", []string{"POST /submit HTTP/1.1\r\n", "Host: example.com\r\nContent-Length: 11\r\n\r\nHello World"}, &Request{Method: "POST", Path: "/submit", Version: "HTTP/1.1", Headers: map[string]string{"Host": "example.com", "Content-Length": "11"}, Body: []byte("Hello World")}},
         {"with a body but without the content-length Header", []string{"POST /submit HTTP/1.1\r\n", "Host: example.com\r\n\r\nHello World"}, &Request{Method: "POST", Path: "/submit", Version: "HTTP/1.1", Headers: map[string]string{"Host": "example.com"}, Body: []byte("Hello World")}},
+        // {"with a body but without the content-length Header and with chunked body", []string{"POST /submit HTTP/1.1\r\n", "Host: example.com\r\n\r\nHello World", "Whatever Left"}, &Request{Method: "POST", Path: "/submit", Version: "HTTP/1.1", Headers: map[string]string{"Host": "example.com"}, Body: []byte("Hello World Whatever Left")}},
     }
 
     // Iterate over the test cases
