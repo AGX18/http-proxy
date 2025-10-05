@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -29,6 +30,7 @@ type Parser struct {
 	state   int           // The current state (e.g., StateRequestLine)
 	buffer  bytes.Buffer  // Accumulates incoming data chunks
 	request *Request      // The Request object we are building
+	bodyLength int       // Expected length of the body, if any
 }
 
 // NewParser creates and returns a new Parser.
@@ -36,6 +38,7 @@ func NewParser() *Parser {
 	return &Parser{
 		state:   StateRequestLine,
 		request: &Request{Headers: make(map[string]string)},
+		bodyLength: -1, // -1 indicates that we haven't seen a Content-Length header yet
 	}
 }
 
@@ -65,7 +68,6 @@ func (p *Parser) Parse(chunk []byte) error {
 			p.state = StateHeaders
 
 		case StateHeaders:
-			for {
 				line, err := p.buffer.ReadString('\n')
 				if err != nil {
 					// Not enough data yet, wait for the next chunk.
@@ -86,10 +88,36 @@ func (p *Parser) Parse(chunk []byte) error {
 				key := strings.TrimSpace(line[:colonIndex])
 				value := strings.TrimSpace(line[colonIndex+1:])
 				p.request.Headers[key] = value
-			}
+				if key == "Content-Length" {
+					length, err := strconv.Atoi(value)
+					if err != nil {
+						return fmt.Errorf("invalid Content-Length value: %q", value)
+					}
+					p.bodyLength = length
+				}
 		case StateBody:
-			// For simplicity, we assume no body for now.
-			p.state = StateDone
+			// Scenario 1: We have a Content-Length.
+			if p.bodyLength > 0 {
+				if p.buffer.Len() >= p.bodyLength {
+					p.request.Body = make([]byte, p.bodyLength)
+					p.buffer.Read(p.request.Body)
+					p.state = StateDone
+				} else {
+					// Not enough data yet, wait for the next chunk.
+					return nil
+				}
+			// Scenario 2: Content-Length is explicitly zero.
+			} else if p.bodyLength == 0 {
+				p.state = StateDone
+			// Scenario 3: No Content-Length header was found (bodyLength is -1).
+			// This is a special case. We read the rest of the packet as the body.
+			// In a real TCP stream, we would read until EOF.
+			} else {
+				p.request.Body = p.buffer.Bytes()
+				p.buffer.Reset() // We've consumed the rest of the buffer.
+				p.state = StateDone
+			}
+
 			return nil
 		case StateDone:
 			// Parsing is complete.
