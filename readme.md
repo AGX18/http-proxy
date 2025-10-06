@@ -1,0 +1,1 @@
+Extend the provided HTTP proxy to support persistent connections with the client. This will require parsing the HTTP requests. If following along with me, my next step will be to write a plan.

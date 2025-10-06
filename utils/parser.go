@@ -8,9 +8,9 @@ import (
 )
 
 // a parser that can extract at least the HTTP version
-// and Connection header from an HTTP request.
+// and Connection header from an HTTP Request.
 
-// Define constants for our parser's state machine.
+// Define constants for our parser's State machine.
 const (
 	StateRequestLine = iota
 	StateHeaders
@@ -27,28 +27,28 @@ type Request struct {
 }
 
 type Parser struct {
-	state   int           // The current state (e.g., StateRequestLine)
+	State   int           // The current State (e.g., StateRequestLine)
 	buffer  bytes.Buffer  // Accumulates incoming data chunks
-	request *Request      // The Request object we are building
+	Request *Request      // The Request object we are building
 	bodyLength int       // Expected length of the body, if any
 }
 
 // NewParser creates and returns a new Parser.
 func NewParser() *Parser {
 	return &Parser{
-		state:   StateRequestLine,
-		request: &Request{Headers: make(map[string]string)},
+		State:   StateRequestLine,
+		Request: &Request{Headers: make(map[string]string)},
 		bodyLength: -1, // -1 indicates that we haven't seen a Content-Length header yet
 	}
 }
 
-// Parse consumes a chunk of bytes and attempts to advance the parsing state.
+// Parse consumes a chunk of bytes and attempts to advance the parsing State.
 // It returns an error if the input is malformed.
 func (p *Parser) Parse(chunk []byte) error {
 	p.buffer.Write(chunk)
 	
-	for (p.state != StateDone) && (p.buffer.Len() > 0) {
-		switch p.state {
+	for (p.State != StateDone) && (p.buffer.Len() > 0) {
+		switch p.State {
 		case StateRequestLine:
 			line, err := p.buffer.ReadString('\n')
 			if err != nil {
@@ -60,12 +60,12 @@ func (p *Parser) Parse(chunk []byte) error {
 			// Parse the line (e.g., "GET / HTTP/1.1\r\n")
 			parts := strings.Fields(line)
 			if len(parts) < 3 {
-				return fmt.Errorf("malformed request line")
+				return fmt.Errorf("malformed Request line")
 			}
-			p.request.Method = parts[0]
-			p.request.Path = parts[1]
-			p.request.Version = strings.TrimSpace(parts[2])
-			p.state = StateHeaders
+			p.Request.Method = parts[0]
+			p.Request.Path = parts[1]
+			p.Request.Version = strings.TrimSpace(parts[2])
+			p.State = StateHeaders
 
 		case StateHeaders:
 				line, err := p.buffer.ReadString('\n')
@@ -77,10 +77,10 @@ func (p *Parser) Parse(chunk []byte) error {
 				line = strings.TrimSpace(line)
 				if line == "" || line == "\r" {
 					// End of headers
-					p.state = StateBody
-					if p.request.Method == "GET" || p.request.Method == "HEAD" {
-						// No body expected for GET or HEAD requests
-						p.state = StateDone
+					p.State = StateBody
+					if p.Request.Method == "GET" || p.Request.Method == "HEAD" {
+						// No body expected for GET or HEAD Requests
+						p.State = StateDone
 					}
 					break
 				}
@@ -91,7 +91,7 @@ func (p *Parser) Parse(chunk []byte) error {
 				}
 				key := strings.TrimSpace(line[:colonIndex])
 				value := strings.TrimSpace(line[colonIndex+1:])
-				p.request.Headers[key] = value
+				p.Request.Headers[key] = value
 				if key == "Content-Length" {
 					length, err := strconv.Atoi(value)
 					if err != nil {
@@ -103,23 +103,23 @@ func (p *Parser) Parse(chunk []byte) error {
 			// Scenario 1: We have a Content-Length.
 			if p.bodyLength > 0 {
 				if p.buffer.Len() >= p.bodyLength {
-					p.request.Body = make([]byte, p.bodyLength)
-					p.buffer.Read(p.request.Body)
-					p.state = StateDone
+					p.Request.Body = make([]byte, p.bodyLength)
+					p.buffer.Read(p.Request.Body)
+					p.State = StateDone
 				} else {
 					// Not enough data yet, wait for the next chunk.
 					return nil
 				}
 			// Scenario 2: Content-Length is explicitly zero.
 			} else if p.bodyLength == 0 {
-				p.state = StateDone
+				p.State = StateDone
 			// Scenario 3: No Content-Length header was found (bodyLength is -1).
 			// This is a special case. We read the rest of the packet as the body.
 			// In a real TCP stream, we would read until EOF.
 			} else {
-				p.request.Body = p.buffer.Bytes()
+				p.Request.Body = p.buffer.Bytes()
 				p.buffer.Reset() // We've consumed the rest of the buffer.
-				p.state = StateDone
+				p.State = StateDone
 			}
 
 			return nil
@@ -127,7 +127,7 @@ func (p *Parser) Parse(chunk []byte) error {
 			// Parsing is complete.
 			return nil
 		default:
-			return fmt.Errorf("unknown parser state")
+			return fmt.Errorf("unknown parser State")
 		}
 	}
 	return nil
@@ -140,7 +140,7 @@ func (p *Parser) IngestString(data string) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.request, nil
+	return p.Request, nil
 }
 
 func (p *Parser) IngestBytes(data []byte) (*Request, error) {
@@ -148,5 +148,5 @@ func (p *Parser) IngestBytes(data []byte) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.request, nil
+	return p.Request, nil
 }

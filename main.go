@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/AGX18/http-proxy/utils"
 	"golang.org/x/sys/unix"
 )
 
@@ -38,42 +39,62 @@ import (
 			fmt.Println("Error accepting connection:", err)
 		}
 		fmt.Println("Accepted connection from:", client_addr)
-		// defer unix.Close(client_sock)
+		handleClientConnection(client_sock)
 		
-		buffer := make([]byte, 4096)
-		data_size, err := unix.Read(client_sock, buffer)
-		if err != nil {
-			fmt.Println("Error reading from client:", err)
-		}
-		fmt.Printf("Received data from client sized (%d): %s\n", data_size, string(buffer[:data_size]))
-		
+		unix.Close(client_sock)
+	}
+ }
+
+ func handleClientConnection(client_sock int) error{
+	for {
+
+		parser := utils.NewParser()
+		data := make([]byte, 4096)
 		upstream_sock, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
 		if err != nil {
-			panic(err)
+			fmt.Println("Error creating upstream socket:", err)
+			return err
 		}
-		// defer unix.Close(upstream_sock)
-		
 		upstream_addr := &unix.SockaddrInet4{Port: 9090, Addr: [4]byte{127, 0, 0, 1}}
+		// connect to the upstream server
 		err = unix.Connect(upstream_sock, upstream_addr)
+		
+		// parse the data until we have a full request
+		for parser.State != utils.StateDone {
+			data_size, err := unix.Read(client_sock, data)
+			if err != nil {
+				fmt.Println("Error reading from client:", err)
+			}
+			if data_size == 0 {
+				fmt.Println("No more data from client")
+				return nil
+			}
+			// parse the data in the http parser
+			parser.Parse(data[:data_size])
+			// forward the data to the upstream server
+			unix.Write(upstream_sock, data[:data_size])
+
+			fmt.Printf("Received data from client sized (%d)\n", data_size)
+			
+		}
 		if err == unix.ECONNREFUSED {
 			fmt.Println("Bad gateway: upstream server is down")
 			unix.Write(client_sock, []byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
 			unix.Close(upstream_sock)
 			unix.Close(client_sock)
-			continue
-		} else if err != nil {
-			fmt.Println("Error connecting to upstream server:", err)
+			return err
+			} else if err != nil {
+				fmt.Println("Error connecting to upstream server:", err)
 			unix.Close(upstream_sock)
-			unix.Close(client_sock)
-			continue
+			return err
 		}
 		fmt.Printf("Connected to upstream server at: %d.%d.%d.%d\n", upstream_addr.Addr[0], upstream_addr.Addr[1], upstream_addr.Addr[2], upstream_addr.Addr[3])
-		
-		unix.Write(upstream_sock, buffer[:data_size])
-		
+
 		res := make([]byte, 4096)
+
+
+		// read the response from the upstream server
 		for {
-			
 			res_size, err := unix.Read(upstream_sock, res)
 			if err != nil {
 				fmt.Println("Error reading from upstream server:", err)
@@ -87,7 +108,19 @@ import (
 			unix.Write(client_sock, res[:res_size])
 		}
 		unix.Close(upstream_sock)
-		unix.Close(client_sock)
-		
+
+		if shouldCloseConnection(*parser.Request) {
+			fmt.Println("Closing connection as per Connection header")
+			unix.Close(upstream_sock)
+			return nil
+		}
 	}
  }
+
+ func shouldCloseConnection(req utils.Request) bool {
+	connHeader, ok := req.Headers["Connection"]; 
+	if req.Version == "HTTP/1.1" && (!ok || (ok && connHeader != "close")) {
+		return false // Keep-alive by default in HTTP/1.1
+	}
+	return !(req.Version == "HTTP/1.0" && (ok && connHeader == "keep-alive"))
+}
